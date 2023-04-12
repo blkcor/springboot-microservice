@@ -8,12 +8,14 @@ import com.chen.orderservice.model.Order;
 import com.chen.orderservice.model.OrderLineItems;
 import com.chen.orderservice.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cloud.client.circuitbreaker.CircuitBreakerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 
@@ -23,7 +25,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final WebClient.Builder webClientBuilder;
 
-    public void placeOrder(OrderRequest orderRequest) {
+    public String placeOrder(OrderRequest orderRequest) {
         Order order = new Order();
         order.setOrderNumber(UUID.randomUUID().toString());
         List<OrderLineItems> collect = orderRequest.getOrderLineItemsDtoList().stream().map(this::mapToDto).collect(Collectors.toList());
@@ -42,8 +44,10 @@ public class OrderService {
                 .bodyToMono(InventoryResponse[].class)
                 .block();
         boolean allProductIsInStock = Arrays.stream(inventoryResponses).allMatch(InventoryResponse::isInStock);
-        if (allProductIsInStock)
+        if (allProductIsInStock){
             orderRepository.save(order);
+            return "place order successfully!";
+        }
         else throw new IllegalArgumentException("Product is not in stock, please try again later!");
     }
 
