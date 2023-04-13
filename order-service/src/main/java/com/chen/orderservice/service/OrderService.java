@@ -4,6 +4,7 @@ package com.chen.orderservice.service;
 import com.chen.orderservice.dto.InventoryResponse;
 import com.chen.orderservice.dto.OrderLineItemsDto;
 import com.chen.orderservice.dto.OrderRequest;
+import com.chen.orderservice.event.OrderPlacedEvent;
 import com.chen.orderservice.model.Order;
 import com.chen.orderservice.model.OrderLineItems;
 import com.chen.orderservice.repository.OrderRepository;
@@ -12,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.client.circuitbreaker.CircuitBreakerFactory;
 import org.springframework.cloud.sleuth.Span;
 import org.springframework.cloud.sleuth.Tracer;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -29,6 +31,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final WebClient.Builder webClientBuilder;
     private final Tracer tracer;
+    private final KafkaTemplate<String, OrderPlacedEvent> kafkaTemplate;
 
     public String placeOrder(OrderRequest orderRequest) {
         Order order = new Order();
@@ -55,6 +58,8 @@ public class OrderService {
             boolean allProductIsInStock = Arrays.stream(inventoryResponses).allMatch(InventoryResponse::isInStock);
             if (allProductIsInStock) {
                 orderRepository.save(order);
+                //TODO:send a message while order stored
+                kafkaTemplate.send("notificationTopic", new OrderPlacedEvent(order.getOrderNumber()));
                 return "place order successfully!";
             } else throw new IllegalArgumentException("Product is not in stock, please try again later!");
         } finally {
